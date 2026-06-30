@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>DAF - Dépenses</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fb;
+      margin: 0;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    th {
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+    .status {
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .status-brouillon { color: #6b7280; }
+    .status-en_validation { color: #f97316; }
+    .status-validée { color: #16a34a; }
+    .status-rejetée { color: #dc2626; }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      background: #2563eb;
+      color: #fff;
+      font-size: 13px;
+    }
+    button.secondary {
+      background: #6b7280;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+ <header>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-weight:600;font-size:18px;">DAF Centre d'appel</span>
+    <span style="font-size:12px;color:#6b7280;">Filiale LONASE</span>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+    <nav style="display:flex;gap:10px;font-size:13px;">
+      <a href="index.html">Dashboard</a>
+      <a href="depenses.html">Dépenses</a>
+      <a href="validations.html">Validations</a>
+      <a href="paie.html">Paie</a>
+      <a href="factures.html">Factures</a>
+    </nav>
+    <span id="user-label" style="font-size:12px;color:#6b7280;">
+      Connecté : ...
+    </span>
+  </div>
+</header>
+
+  <div class="layout">
+    <!-- Colonne gauche : liste des dépenses -->
+    <section class="card">
+      <h2 style="font-size:16px;margin-top:0;">Liste des dépenses</h2>
+
+      <div style="margin-bottom:10px; display:flex; gap:8px; align-items:center;">
+  <span style="font-size:13px;">Filtrer par statut :</span>
+  <select id="filtre-statut" onchange="chargerDepenses()">
+    <option value="">Tous</option>
+    <option value="brouillon">brouillon</option>
+    <option value="en_validation">en_validation</option>
+    <option value="validée">validée</option>
+    <option value="rejetée">rejetée</option>
+  </select>
+</div>
+
+
+      <table id="table-depenses">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Montant (FCFA)</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- lignes remplies en JS -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Colonne droite : nouvelle dépense -->
+    <section class="card">
+      <h2 style="font-size:16px;margin-top:0;">Nouvelle dépense</h2>
+      <form id="form-depense" onsubmit="envoyerDepense(event)">
+        <label for="date_depense">Date</label>
+        <input type="date" id="date_depense" name="date_depense" required>
+
+        <label for="type_depense">Type de dépense</label>
+        <select id="type_depense" name="type_depense" required>
+          <option value="">Choisir...</option>
+          <option value="Fournisseur">Fournisseur</option>
+          <option value="Logistique">Logistique</option>
+          <option value="Prime">Prime</option>
+          <option value="Autre">Autre</option>
+        </select>
+
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" placeholder="Ex : Abonnement télécom centre d'appel"></textarea>
+
+        <label for="montant_fcfa">Montant (FCFA)</label>
+        <input type="number" id="montant_fcfa" name="montant_fcfa" min="0" step="1" required>
+
+        <label for="action">Action</label>
+        <select id="action" name="action">
+          <option value="brouillon">Enregistrer en brouillon</option>
+          <option value="validation">Envoyer en validation</option>
+        </select>
+
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <button type="submit">Enregistrer</button>
+          <button type="button" class="secondary" onclick="resetForm()">Réinitialiser</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    function getUserIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  return id || '1'; // par défaut Souadou
+}
+
+async function chargerUtilisateurCourant() {
+  try {
+    const userId = getUserIdFromUrl();
+    const res = await fetch(`http://localhost:3000/api/user/current?id=${userId}`);
+    const user = await res.json();
+    const label = document.getElementById('user-label');
+    if (label) {
+      label.textContent = `Connecté : ${user.nom} (${user.role})`;
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+
+    async function chargerDepenses() {
+  try {
+    const select = document.getElementById('filtre-statut');
+    const filtreStatut = select ? select.value : '';
+
+    let url = 'http://localhost:3000/api/depenses';
+    if (filtreStatut) {
+      url += '?statut=' + encodeURIComponent(filtreStatut);
+    }
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    const tbody = document.querySelector('#table-depenses tbody');
+    tbody.innerHTML = '';
+
+    data.forEach(depense => {
+      const tr = document.createElement('tr');
+
+      const tdDate = document.createElement('td');
+      tdDate.textContent = depense.date_depense;
+
+      const tdType = document.createElement('td');
+      tdType.textContent = depense.type_depense;
+
+      const tdDesc = document.createElement('td');
+      tdDesc.textContent = depense.description || '';
+
+      const tdMontant = document.createElement('td');
+      tdMontant.textContent = new Intl.NumberFormat('fr-FR').format(depense.montant_fcfa);
+
+      const tdStatut = document.createElement('td');
+      tdStatut.textContent = depense.statut;
+      tdStatut.className = 'status status-' + depense.statut.replace(' ', '_');
+
+      tr.appendChild(tdDate);
+      tr.appendChild(tdType);
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdMontant);
+      tr.appendChild(tdStatut);
+
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.error(e);
+    alert('Erreur lors du chargement des dépenses');
+  }
+}
+
+    async function envoyerDepense(event) {
+      event.preventDefault();
+
+      const date_depense = document.getElementById('date_depense').value;
+      const type_depense = document.getElementById('type_depense').value;
+      const description = document.getElementById('description').value;
+      const montant_fcfa = Number(document.getElementById('montant_fcfa').value);
+      const action = document.getElementById('action').value;
+
+      if (!date_depense || !type_depense || !montant_fcfa) {
+        alert('Merci de remplir les champs obligatoires');
+        return;
+      }
+
+      try {
+        const res = await fetch('http://localhost:3000/api/depenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date_depense,
+            type_depense,
+            description,
+            montant_fcfa,
+            action
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert('Dépense enregistrée (statut : ' + data.statut + ')');
+          resetForm();
+          chargerDepenses(); // rafraîchir la liste
+        } else {
+          alert('Erreur: ' + (data.error || 'inconnue'));
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Erreur lors de l\'enregistrement');
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('form-depense').reset();
+    }
+
+    // Chargement initial
+    chargerUtilisateurCourant();
+    chargerDepenses();
+  </script>
+</body>
+</html>

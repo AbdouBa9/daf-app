@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard DAF - V1</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fb;
+      margin: 0;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    header a {
+      color: #2563eb;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    header a:hover {
+      text-decoration: underline;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .card-title {
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .card-sub {
+      font-size: 12px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <header>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-weight:600;font-size:18px;">DAF Centre d'appel</span>
+    <span style="font-size:12px;color:#6b7280;">Filiale LONASE</span>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+    <nav style="display:flex;gap:10px;font-size:13px;">
+      <a href="index.html">Dashboard</a>
+      <a href="depenses.html">Dépenses</a>
+      <a href="validations.html">Validations</a>
+      <a href="paie.html">Paie</a>
+      <a href="factures.html">Factures</a>
+    </nav>
+    <span id="user-label" style="font-size:12px;color:#6b7280;">
+      Connecté : ...
+    </span>
+  </div>
+</header>
+
+  <h2 style="font-size:16px;margin-top:0;margin-bottom:12px;">
+    Synthèse financière & RH
+  </h2>
+
+  <section class="kpi-grid">
+    <div class="card">
+      <div class="card-title">Trésorerie disponible</div>
+      <div class="card-value" id="kpi-tresorerie">...</div>
+      <div class="card-sub">Valeur de démonstration</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Dépenses du mois</div>
+      <div class="card-value" id="kpi-depenses">...</div>
+      <div class="card-sub">
+        Montant validé / payé –
+        <a href="depenses.html" style="color:#2563eb;text-decoration:none;font-size:12px;">
+          voir détails
+        </a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Factures en attente</div>
+      <div class="card-value" id="kpi-factures">...</div>
+      <div class="card-sub">Nombre et montant</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Masse salariale du mois</div>
+      <div class="card-value" id="kpi-masse">...</div>
+      <div class="card-sub">Saisie dans paie_mensuelle</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Validations en attente</div>
+      <div class="card-value" id="kpi-validations">...</div>
+      <div class="card-sub">Demandes à traiter</div>
+    </div>
+  </section>
+
+  <section style="margin-top:20px;">
+    <h3 style="font-size:14px;margin-bottom:8px;">Modules DAF</h3>
+    <ul style="list-style:none;padding:0;font-size:13px;">
+      <li>• <a href="depenses.html">Gestion des dépenses</a></li>
+      <li>• <a href="factures.html">Factures fournisseurs</a></li>
+      <li>• <a href="paie.html">Masse salariale</a></li>
+      <li>• <a href="validations.html">Validations DAF</a></li>
+    </ul>
+  </section>
+
+  <script>
+  function getUserIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  return id || '1'; // par défaut Souadou
+}
+
+async function chargerUtilisateurCourant() {
+  try {
+    const userId = getUserIdFromUrl();
+    const res = await fetch(`http://localhost:3000/api/user/current?id=${userId}`);
+    const user = await res.json();
+    const label = document.getElementById('user-label');
+    if (label) {
+      label.textContent = `Connecté : ${user.nom} (${user.role})`;
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+  async function chargerDashboard() {
+    const mois = '2026-06';
+    try {
+      const res = await fetch(`http://localhost:3000/api/dashboard/daf?mois=${mois}`);
+      const data = await res.json();
+
+      document.getElementById('kpi-tresorerie').textContent =
+        new Intl.NumberFormat('fr-FR').format(data.tresorerie) + ' FCFA';
+
+      document.getElementById('kpi-depenses').textContent =
+        new Intl.NumberFormat('fr-FR').format(data.depenses_mois) + ' FCFA';
+
+      document.getElementById('kpi-factures').textContent =
+        `${data.factures_en_attente_nombre} | ` +
+        new Intl.NumberFormat('fr-FR').format(data.factures_en_attente_montant) + ' FCFA';
+
+      document.getElementById('kpi-masse').textContent =
+        new Intl.NumberFormat('fr-FR').format(data.masse_salariale) + ' FCFA';
+
+      document.getElementById('kpi-validations').textContent =
+        data.validations_en_attente;
+    } catch (e) {
+      console.error(e);
+      alert('Erreur lors du chargement du dashboard');
+    }
+  }
+
+  // Chargement initial
+  chargerUtilisateurCourant();
+  chargerDashboard();
+</script>
+</body>
+</html>

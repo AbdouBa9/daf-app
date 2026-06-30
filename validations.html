@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>DAF - Validations</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f7fb;
+      margin: 0;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    a {
+      color: #2563eb;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    th {
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+    button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .btn-valider {
+      background: #16a34a;
+      color: #fff;
+    }
+    .btn-rejeter {
+      background: #dc2626;
+      color: #fff;
+    }
+    .btn-valider:hover {
+      background: #15803d;
+    }
+    .btn-rejeter:hover {
+      background: #b91c1c;
+    }
+  </style>
+</head>
+<body>
+ <header>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-weight:600;font-size:18px;">DAF Centre d'appel</span>
+    <span style="font-size:12px;color:#6b7280;">Filiale LONASE</span>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+    <nav style="display:flex;gap:10px;font-size:13px;">
+      <a href="index.html">Dashboard</a>
+      <a href="depenses.html">Dépenses</a>
+      <a href="validations.html">Validations</a>
+      <a href="paie.html">Paie</a>
+      <a href="factures.html">Factures</a>
+    </nav>
+    <span id="user-label" style="font-size:12px;color:#6b7280;">
+      Connecté : ...
+    </span>
+  </div>
+</header>
+
+  <section class="card">
+    <h2 style="font-size:16px;margin-top:0;">Demandes en attente</h2>
+    <table id="table-validations">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Type</th>
+          <th>Objet</th>
+          <th>Montant (FCFA)</th>
+          <th>Statut</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- lignes remplies en JS -->
+      </tbody>
+    </table>
+  </section>
+
+  <script>
+     let currentUserId = 1;
+
+  function getUserIdFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  return id || '1';
+}
+
+async function chargerUtilisateurCourant() {
+  try {
+    const userId = getUserIdFromUrl();
+    currentUserId = Number(userId);
+    const res = await fetch(`http://localhost:3000/api/user/current?id=${userId}`);
+    const user = await res.json();
+    const label = document.getElementById('user-label');
+    if (label) {
+      label.textContent = `Connecté : ${user.nom} (${user.role})`;
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+
+    async function chargerValidations() {
+      try {
+        const res = await fetch('http://localhost:3000/api/validations?statut=en_attente');
+        const validations = await res.json();
+
+        const tbody = document.querySelector('#table-validations tbody');
+        tbody.innerHTML = '';
+
+        for (const val of validations) {
+          const tr = document.createElement('tr');
+
+          // infos de base
+          const tdId = document.createElement('td');
+          tdId.textContent = val.id;
+
+          const tdType = document.createElement('td');
+          tdType.textContent = val.type_objet;
+
+          const tdObjet = document.createElement('td');
+          tdObjet.textContent = val.id_objet;
+
+          // aller chercher le montant et la description si c'est une dépense
+          const tdMontant = document.createElement('td');
+          const tdStatut = document.createElement('td');
+          tdStatut.textContent = val.statut;
+
+          if (val.type_objet === 'depense') {
+            try {
+              const resDep = await fetch(`http://localhost:3000/api/depenses/${val.id_objet}`);
+              const depense = await resDep.json();
+              tdMontant.textContent = new Intl.NumberFormat('fr-FR').format(depense.montant_fcfa);
+              tdObjet.textContent = depense.description || ('Dépense #' + val.id_objet);
+            } catch (e) {
+              tdMontant.textContent = '-';
+            }
+          } else {
+            tdMontant.textContent = '-';
+          }
+
+          const tdAction = document.createElement('td');
+          const btnValider = document.createElement('button');
+          btnValider.textContent = 'Valider';
+          btnValider.className = 'btn-valider';
+          btnValider.onclick = () => decisionValidation(val.id, 'validée');
+
+          const btnRejeter = document.createElement('button');
+          btnRejeter.textContent = 'Rejeter';
+          btnRejeter.className = 'btn-rejeter';
+          btnRejeter.style.marginLeft = '6px';
+          btnRejeter.onclick = () => decisionValidation(val.id, 'rejetée');
+
+          tdAction.appendChild(btnValider);
+          tdAction.appendChild(btnRejeter);
+
+          tr.appendChild(tdId);
+          tr.appendChild(tdType);
+          tr.appendChild(tdObjet);
+          tr.appendChild(tdMontant);
+          tr.appendChild(tdStatut);
+          tr.appendChild(tdAction);
+
+          tbody.appendChild(tr);
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Erreur lors du chargement des validations');
+      }
+    }
+
+    async function decisionValidation(id, statut) {
+      const commentaire = prompt(
+        statut === 'validée'
+          ? 'Commentaire (optionnel) pour validation :'
+          : 'Commentaire (optionnel) pour rejet :'
+      );
+
+      try {
+        const res = await fetch(`http://localhost:3000/api/validations/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            statut,
+            commentaire,
+            id_validateur: currentUserId
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert('Validation mise à jour (statut : ' + data.statut + ')');
+          chargerValidations(); // rafraîchir la liste
+        } else {
+          alert('Erreur: ' + (data.error || 'inconnue'));
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Erreur lors de la mise à jour de la validation');
+      }
+    }
+
+    // Chargement initial
+    chargerUtilisateurCourant();
+    chargerValidations();
+  </script>
+</body>
+</html>
