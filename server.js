@@ -1,16 +1,33 @@
 // server.js
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const { Pool } = require('pg');
+//const sqlite3 = require('sqlite3').verbose();
+//const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Connexion Postgres (Render)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Vérifier la connexion au démarrage
+pool.connect()
+  .then(client => {
+    console.log('Connecté à la base Postgres Render');
+    client.release();
+  })
+  .catch(err => {
+    console.error('Erreur de connexion Postgres :', err);
+  });
+
 // DB SQLite
-const dbFile = path.join(__dirname, 'daf.db');
-const db = new sqlite3.Database(dbFile);
+//const dbFile = path.join(__dirname, 'daf.db');
+//const db = new sqlite3.Database(dbFile);
 
 
 // Création des tables au démarrage
