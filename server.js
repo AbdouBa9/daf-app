@@ -359,7 +359,7 @@ app.post('/api/paie', (req, res) => {
 });
 
 // Serveur
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Serveur DAF en écoute sur http://localhost:${PORT}`);
+  console.log(`Serveur DAF en écoute sur port ${PORT}`);
 });
