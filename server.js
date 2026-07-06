@@ -128,8 +128,38 @@ app.get('/api/depenses/:id', (req, res) => {
   res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
 });
 
-app.post('/api/depenses', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.post('/api/depenses', async (req, res) => {
+  try {
+    const { date_depense, type_depense, description, montant_fcfa, action } = req.body;
+
+    if (!date_depense || !type_depense || !montant_fcfa) {
+      return res.status(400).json({ error: 'Champs obligatoires manquants' });
+    }
+
+    const statut = action === 'validation' ? 'en_validation' : 'brouillon';
+
+    const insertDepense = await pool.query(
+      `INSERT INTO depenses
+       (date_depense, type_depense, description, montant_fcfa, statut)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [date_depense, type_depense, description || '', montant_fcfa, statut]
+    );
+
+    const newId = insertDepense.rows[0].id;
+
+    if (statut === 'en_validation') {
+      await pool.query(
+        `INSERT INTO validations (type_objet, id_objet, statut, date_demande)
+         VALUES ($1, $2, $3, NOW()::text)`,
+        ['depense', newId, 'en_attente']
+      );
+    }
+
+    res.status(201).json({ id: newId, statut });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/factures', (req, res) => {
