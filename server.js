@@ -124,8 +124,21 @@ app.get('/api/depenses', async (req, res) => {
   }
 });
 
-app.get('/api/depenses/:id', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/depenses/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM depenses WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Dépense non trouvée' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/depenses', async (req, res) => {
