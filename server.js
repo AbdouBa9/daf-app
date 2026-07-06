@@ -99,8 +99,29 @@ app.get('/', (req, res) => {
 });
 
 // Routes en attente de migration
-app.get('/api/depenses', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/depenses', async (req, res) => {
+  try {
+    const { statut, type_depense } = req.query;
+    let sql = 'SELECT * FROM depenses WHERE 1=1';
+    const values = [];
+
+    if (statut) {
+      values.push(statut);
+      sql += ` AND statut = $${values.length}`;
+    }
+
+    if (type_depense) {
+      values.push(type_depense);
+      sql += ` AND type_depense = $${values.length}`;
+    }
+
+    sql += ' ORDER BY date_depense DESC';
+
+    const result = await pool.query(sql, values);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/depenses/:id', (req, res) => {
