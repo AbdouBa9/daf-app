@@ -180,16 +180,68 @@ app.post('/api/depenses', async (req, res) => {
   }
 });
 
-app.get('/api/factures', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/factures', async (req, res) => {
+  try {
+    const { statut } = req.query;
+    let sql = 'SELECT * FROM factures WHERE 1=1';
+    const values = [];
+
+    if (statut) {
+      values.push(statut);
+      sql += ` AND statut = $${values.length}`;
+    }
+
+    sql += ' ORDER BY date_echeance ASC';
+
+    const result = await pool.query(sql, values);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/factures/:id', (req, res) => {
   res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
 });
 
-app.post('/api/factures', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.post('/api/factures', async (req, res) => {
+  try {
+    const {
+      fournisseur,
+      numero_facture,
+      date_emission,
+      date_echeance,
+      montant_fcfa,
+      statut,
+      id_depense_liee
+    } = req.body;
+
+    if (!fournisseur || !date_echeance || !montant_fcfa) {
+      return res.status(400).json({ error: 'Fournisseur, date échéance et montant sont obligatoires' });
+    }
+
+    const statutFinal = statut || 'reçue';
+
+    const result = await pool.query(
+      `INSERT INTO factures
+       (fournisseur, numero_facture, date_emission, date_echeance, montant_fcfa, statut, id_depense_liee)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
+      [
+        fournisseur,
+        numero_facture || '',
+        date_emission || '',
+        date_echeance,
+        montant_fcfa,
+        statutFinal,
+        id_depense_liee || null
+      ]
+    );
+
+    res.status(201).json({ id: result.rows[0].id, statut: statutFinal });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/validations', (req, res) => {
