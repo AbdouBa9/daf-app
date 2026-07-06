@@ -85,6 +85,11 @@ async function initDb() {
       )
     `);
 
+        await pool.query(`
+      ALTER TABLE paie_mensuelle
+      ADD CONSTRAINT paie_mensuelle_mois_unique UNIQUE (mois)
+    `).catch(() => {});
+
     console.log('Tables Postgres prêtes');
   } catch (err) {
     console.error('Erreur initialisation Postgres :', err);
@@ -247,12 +252,50 @@ app.get('/api/dashboard/daf', async (req, res) => {
   }
 });
 
-app.get('/api/paie', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/paie', async (req, res) => {
+  try {
+    const { mois } = req.query;
+
+    if (!mois) {
+      return res.status(400).json({ error: 'Paramètre mois manquant (AAAA-MM)' });
+    }
+
+    const result = await pool.query(
+      `SELECT masse_salariale FROM paie_mensuelle WHERE mois = $1`,
+      [mois]
+    );
+
+    res.json({
+      mois,
+      masse_salariale: result.rows[0]
+        ? Number(result.rows[0].masse_salariale || 0)
+        : 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/paie', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.post('/api/paie', async (req, res) => {
+  try {
+    const { mois, masse_salariale } = req.body;
+
+    if (!mois || typeof masse_salariale !== 'number') {
+      return res.status(400).json({ error: 'mois (AAAA-MM) et masse_salariale (nombre) requis' });
+    }
+
+    await pool.query(
+      `INSERT INTO paie_mensuelle (mois, masse_salariale)
+       VALUES ($1, $2)
+       ON CONFLICT (mois)
+       DO UPDATE SET masse_salariale = EXCLUDED.masse_salariale`,
+      [mois, masse_salariale]
+    );
+
+    res.json({ message: 'Masse salariale enregistrée', mois, masse_salariale });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serveur
