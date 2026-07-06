@@ -244,12 +244,95 @@ app.post('/api/factures', async (req, res) => {
   }
 });
 
-app.get('/api/validations', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/validations', async (req, res) => {
+  try {
+    const { statut } = req.query;
+    let sql = 'SELECT * FROM validations WHERE 1=1';
+    const values = [];
+
+    if (statut) {
+      values.push(statut);
+      sql += ` AND statut = $${values.length}`;
+    }
+
+    sql += ' ORDER BY date_demande DESC, id DESC';
+
+    const result = await pool.query(sql, values);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.put('/api/validations/:id', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.post('/api/validations', async (req, res) => {
+  try {
+    const {
+      type_objet,
+      id_objet,
+      demande_par,
+      valide_par,
+      statut,
+      commentaire,
+      date_demande
+    } = req.body;
+
+    if (!type_objet || !id_objet || !demande_par) {
+      return res.status(400).json({
+        error: 'type_objet, id_objet et demande_par sont obligatoires'
+      });
+    }
+
+    const statutFinal = statut || 'en_attente';
+    const dateDemandeFinale = date_demande || new Date().toISOString().slice(0, 10);
+
+    const result = await pool.query(
+      `INSERT INTO validations
+       (type_objet, id_objet, demande_par, valide_par, statut, commentaire, date_demande)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, statut`,
+      [
+        type_objet,
+        id_objet,
+        demande_par,
+        valide_par || null,
+        statutFinal,
+        commentaire || '',
+        dateDemandeFinale
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/validations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { statut, valide_par } = req.body;
+
+    if (!statut) {
+      return res.status(400).json({ error: 'Le statut est obligatoire' });
+    }
+
+    const result = await pool.query(
+      `UPDATE validations
+       SET statut = $1,
+           valide_par = $2
+       WHERE id = $3
+       RETURNING id, statut, valide_par`,
+      [statut, valide_par || null, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Validation introuvable' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/user/current', (req, res) => {
