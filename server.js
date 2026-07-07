@@ -85,10 +85,19 @@ async function initDb() {
       )
     `);
 
-        await pool.query(`
+    // Contrainte d’unicité sur le mois (ignore si déjà créée)
+    await pool.query(`
       ALTER TABLE paie_mensuelle
       ADD CONSTRAINT paie_mensuelle_mois_unique UNIQUE (mois)
     `).catch(() => {});
+
+    // Index utiles pour les filtres fréquents
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_depenses_statut ON depenses(statut)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_depenses_date ON depenses(date_depense)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_factures_statut ON factures(statut)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_factures_date_echeance ON factures(date_echeance)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_validations_statut ON validations(statut)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_paie_mois ON paie_mensuelle(mois)`);
 
     console.log('Tables Postgres prêtes');
   } catch (err) {
@@ -103,7 +112,8 @@ app.get('/', (req, res) => {
   res.json({ message: 'API DAF opérationnelle' });
 });
 
-// Routes en attente de migration
+// ------------------------ DÉPENSES ------------------------
+
 app.get('/api/depenses', async (req, res) => {
   try {
     const { statut, type_depense } = req.query;
@@ -120,11 +130,12 @@ app.get('/api/depenses', async (req, res) => {
       sql += ` AND type_depense = $${values.length}`;
     }
 
-    sql += ' ORDER BY date_depense DESC';
+    sql += ' ORDER BY date_depense DESC, id DESC';
 
     const result = await pool.query(sql, values);
     res.json(result.rows);
   } catch (err) {
+    console.error('GET /api/depenses', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -142,21 +153,26 @@ app.get('/api/depenses/:id', async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error('GET /api/depenses/:id', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// Création de dépense + éventuelle demande de validation en transaction
 app.post('/api/depenses', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { date_depense, type_depense, description, montant_fcfa, action } = req.body;
 
-    if (!date_depense || !type_depense || !montant_fcfa) {
-      return res.status(400).json({ error: 'Champs obligatoires manquants' });
+    if (!date_depense || !type_depense || typeof montant_fcfa !== 'number') {
+      return res.status(400).json({ error: 'date_depense, type_depense et montant_fcfa sont obligatoires' });
     }
 
     const statut = action === 'validation' ? 'en_validation' : 'brouillon';
 
-    const insertDepense = await pool.query(
+    await client.query('BEGIN');
+
+    const insertDepense = await client.query(
       `INSERT INTO depenses
        (date_depense, type_depense, description, montant_fcfa, statut)
        VALUES ($1, $2, $3, $4, $5)
@@ -167,18 +183,26 @@ app.post('/api/depenses', async (req, res) => {
     const newId = insertDepense.rows[0].id;
 
     if (statut === 'en_validation') {
-      await pool.query(
+      await client.query(
         `INSERT INTO validations (type_objet, id_objet, statut, date_demande)
          VALUES ($1, $2, $3, NOW()::text)`,
         ['depense', newId, 'en_attente']
       );
     }
 
+    await client.query('COMMIT');
+
     res.status(201).json({ id: newId, statut });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('POST /api/depenses', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
+
+// ------------------------ FACTURES ------------------------
 
 app.get('/api/factures', async (req, res) => {
   try {
@@ -191,11 +215,12 @@ app.get('/api/factures', async (req, res) => {
       sql += ` AND statut = $${values.length}`;
     }
 
-    sql += ' ORDER BY date_echeance ASC';
+    sql += ' ORDER BY date_echeance ASC, id ASC';
 
     const result = await pool.query(sql, values);
     res.json(result.rows);
   } catch (err) {
+    console.error('GET /api/factures', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -215,6 +240,7 @@ app.get('/api/factures/:id', async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error('GET /api/factures/:id', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -231,8 +257,8 @@ app.post('/api/factures', async (req, res) => {
       id_depense_liee
     } = req.body;
 
-    if (!fournisseur || !date_echeance || !montant_fcfa) {
-      return res.status(400).json({ error: 'Fournisseur, date échéance et montant sont obligatoires' });
+    if (!fournisseur || !date_echeance || typeof montant_fcfa !== 'number') {
+      return res.status(400).json({ error: 'Fournisseur, date échéance et montant (nombre) sont obligatoires' });
     }
 
     const statutFinal = statut || 'reçue';
@@ -255,9 +281,12 @@ app.post('/api/factures', async (req, res) => {
 
     res.status(201).json({ id: result.rows[0].id, statut: statutFinal });
   } catch (err) {
+    console.error('POST /api/factures', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ------------------------ VALIDATIONS ------------------------
 
 app.get('/api/validations', async (req, res) => {
   try {
@@ -275,6 +304,7 @@ app.get('/api/validations', async (req, res) => {
     const result = await pool.query(sql, values);
     res.json(result.rows);
   } catch (err) {
+    console.error('GET /api/validations', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -318,11 +348,14 @@ app.post('/api/validations', async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error('POST /api/validations', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// Mise à jour validation + statut de dépense liée en transaction
 app.put('/api/validations/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const { statut, id_validateur, date_decision, commentaire } = req.body;
@@ -331,7 +364,24 @@ app.put('/api/validations/:id', async (req, res) => {
       return res.status(400).json({ error: 'Le statut est obligatoire' });
     }
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    // On récupère la validation pour savoir si elle porte sur une dépense
+    const valResult = await client.query(
+      `SELECT type_objet, id_objet
+       FROM validations
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (valResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Validation introuvable' });
+    }
+
+    const validation = valResult.rows[0];
+
+    const updateVal = await client.query(
       `UPDATE validations
        SET statut = $1,
            id_validateur = $2,
@@ -342,33 +392,69 @@ app.put('/api/validations/:id', async (req, res) => {
       [
         statut,
         id_validateur || null,
-        date_decision || null,
+        date_decision || new Date().toISOString().slice(0, 10),
         commentaire || '',
         id
       ]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Validation introuvable' });
+    // Si validation porte sur une dépense, on synchronise le statut de la dépense
+    if (validation.type_objet === 'depense') {
+      let nouveauStatutDepense;
+      if (statut === 'validée') {
+        nouveauStatutDepense = 'validée';
+      } else if (statut === 'rejetée') {
+        nouveauStatutDepense = 'rejetée';
+      } else if (statut === 'en_attente') {
+        nouveauStatutDepense = 'en_validation';
+      }
+
+      if (nouveauStatutDepense) {
+        await client.query(
+          `UPDATE depenses
+           SET statut = $1,
+               id_validateur = $2,
+               date_validation = $3
+           WHERE id = $4`,
+          [
+            nouveauStatutDepense,
+            id_validateur || null,
+            date_decision || new Date().toISOString().slice(0, 10),
+            validation.id_objet
+          ]
+        );
+      }
     }
 
-    res.json(result.rows[0]);
+    await client.query('COMMIT');
+
+    res.json(updateVal.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('PUT /api/validations/:id', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
+// ------------------------ UTILISATEUR COURANT ------------------------
+
 app.get('/api/user/current', async (req, res) => {
   try {
+    // Pour l’instant, utilisateur “Admin” en dur
     res.json({
       id: 1,
       nom: 'Admin',
       role: 'admin'
     });
   } catch (err) {
+    console.error('GET /api/user/current', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ------------------------ DASHBOARD ------------------------
 
 app.get('/api/dashboard/daf', async (req, res) => {
   try {
@@ -414,9 +500,12 @@ app.get('/api/dashboard/daf', async (req, res) => {
 
     res.json(result);
   } catch (err) {
+    console.error('GET /api/dashboard/daf', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ------------------------ PAIE ------------------------
 
 app.get('/api/paie', async (req, res) => {
   try {
@@ -438,6 +527,7 @@ app.get('/api/paie', async (req, res) => {
         : 0
     });
   } catch (err) {
+    console.error('GET /api/paie', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -460,16 +550,37 @@ app.post('/api/paie', async (req, res) => {
 
     res.json({ message: 'Masse salariale enregistrée', mois, masse_salariale });
   } catch (err) {
+    console.error('POST /api/paie', err);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ------------------------ HEALTH ------------------------
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Serveur
+// ------------------------ SERVEUR ------------------------
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Serveur DAF en écoute sur port ${PORT}`);
+});
+
+// Arrêt propre
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM reçu, arrêt du serveur...');
+  server.close(async () => {
+    await pool.end();
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT reçu, arrêt du serveur...');
+  server.close(async () => {
+    await pool.end();
+    process.exit(0);
+  });
 });
