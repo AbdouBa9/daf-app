@@ -464,6 +464,10 @@ app.post('/api/paie', async (req, res) => {
   }
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // Serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
