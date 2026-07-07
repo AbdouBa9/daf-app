@@ -269,16 +269,16 @@ app.post('/api/validations', async (req, res) => {
     const {
       type_objet,
       id_objet,
-      demande_par,
-      valide_par,
+      id_demandeur,
+      id_validateur,
       statut,
       commentaire,
       date_demande
     } = req.body;
 
-    if (!type_objet || !id_objet || !demande_par) {
+    if (!type_objet || !id_objet) {
       return res.status(400).json({
-        error: 'type_objet, id_objet et demande_par sont obligatoires'
+        error: 'type_objet et id_objet sont obligatoires'
       });
     }
 
@@ -287,17 +287,17 @@ app.post('/api/validations', async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO validations
-       (type_objet, id_objet, demande_par, valide_par, statut, commentaire, date_demande)
+       (type_objet, id_objet, id_demandeur, id_validateur, statut, date_demande, commentaire)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, statut`,
       [
         type_objet,
         id_objet,
-        demande_par,
-        valide_par || null,
+        id_demandeur || null,
+        id_validateur || null,
         statutFinal,
-        commentaire || '',
-        dateDemandeFinale
+        dateDemandeFinale,
+        commentaire || ''
       ]
     );
 
@@ -310,7 +310,7 @@ app.post('/api/validations', async (req, res) => {
 app.put('/api/validations/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { statut, valide_par } = req.body;
+    const { statut, id_validateur, date_decision, commentaire } = req.body;
 
     if (!statut) {
       return res.status(400).json({ error: 'Le statut est obligatoire' });
@@ -319,10 +319,18 @@ app.put('/api/validations/:id', async (req, res) => {
     const result = await pool.query(
       `UPDATE validations
        SET statut = $1,
-           valide_par = $2
-       WHERE id = $3
-       RETURNING id, statut, valide_par`,
-      [statut, valide_par || null, id]
+           id_validateur = $2,
+           date_decision = $3,
+           commentaire = $4
+       WHERE id = $5
+       RETURNING id, statut, id_validateur, date_decision, commentaire`,
+      [
+        statut,
+        id_validateur || null,
+        date_decision || null,
+        commentaire || '',
+        id
+      ]
     );
 
     if (result.rowCount === 0) {
