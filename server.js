@@ -200,8 +200,23 @@ app.get('/api/factures', async (req, res) => {
   }
 });
 
-app.get('/api/factures/:id', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/factures/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      'SELECT * FROM factures WHERE id = $1',
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Facture introuvable' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/factures', async (req, res) => {
@@ -343,8 +358,16 @@ app.put('/api/validations/:id', async (req, res) => {
   }
 });
 
-app.get('/api/user/current', (req, res) => {
-  res.status(501).json({ error: 'Route pas encore migrée vers Postgres' });
+app.get('/api/user/current', async (req, res) => {
+  try {
+    res.json({
+      id: 1,
+      nom: 'Admin',
+      role: 'admin'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/dashboard/daf', async (req, res) => {
