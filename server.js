@@ -578,24 +578,7 @@ app.get('/api/debug/users', async (req, res) => {
   }
 });
 
-app.post('/api/debug/seed-users', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      INSERT INTO users (nom, role, email)
-      VALUES
-        ('Admin DAF', 'admin', 'admin@daf.local'),
-        ('Demandeur Test', 'requester', 'demandeur@daf.local'),
-        ('Validateur Test', 'validator', 'validateur@daf.local'),
-        ('Payeur Test', 'payer', 'payeur@daf.local')
-      RETURNING id, nom, role, email
-    `);
 
-    res.status(201).json(result.rows);
-  } catch (err) {
-    console.error('POST /api/debug/seed-users', err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ------------------------ HEALTH ------------------------
 
