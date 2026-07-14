@@ -442,18 +442,29 @@ app.put('/api/validations/:id', async (req, res) => {
 
 app.get('/api/user/current', async (req, res) => {
   try {
-    // Pour l’instant, utilisateur “Admin” en dur
-    res.json({
-      id: 1,
-      nom: 'Admin',
-      role: 'admin'
-    });
+    const { id } = req.query;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Paramètre id manquant' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, nom, role, email
+       FROM users
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Utilisateur introuvable' });
+    }
+
+    res.json(result.rows[0]);
   } catch (err) {
     console.error('GET /api/user/current', err);
     res.status(500).json({ error: err.message });
   }
 });
-
 // ------------------------ DASHBOARD ------------------------
 
 app.get('/api/dashboard/daf', async (req, res) => {
@@ -551,6 +562,18 @@ app.post('/api/paie', async (req, res) => {
     res.json({ message: 'Masse salariale enregistrée', mois, masse_salariale });
   } catch (err) {
     console.error('POST /api/paie', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, nom, role, email FROM users ORDER BY id ASC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('GET /api/debug/users', err);
     res.status(500).json({ error: err.message });
   }
 });
