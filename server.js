@@ -297,46 +297,51 @@ app.get('/api/factures/:id', async (req, res) => {
   }
 });
 
-app.post('/api/factures', async (req, res) => {
-  try {
-    const {
-      fournisseur,
-      numero_facture,
-      date_emission,
-      date_echeance,
-      montant_fcfa,
-      statut,
-      id_depense_liee
-    } = req.body;
-
-    if (!fournisseur || !date_echeance || typeof montant_fcfa !== 'number') {
-      return res.status(400).json({ error: 'Fournisseur, date échéance et montant (nombre) sont obligatoires' });
-    }
-
-    const statutFinal = statut || 'reçue';
-
-    const result = await pool.query(
-      `INSERT INTO factures
-       (fournisseur, numero_facture, date_emission, date_echeance, montant_fcfa, statut, id_depense_liee)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id`,
-      [
+app.post(
+  '/api/factures',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'payer'),
+  async (req, res) => {
+    try {
+      const {
         fournisseur,
-        numero_facture || '',
-        date_emission || '',
+        numero_facture,
+        date_emission,
         date_echeance,
         montant_fcfa,
-        statutFinal,
-        id_depense_liee || null
-      ]
-    );
+        statut,
+        id_depense_liee
+      } = req.body;
 
-    res.status(201).json({ id: result.rows[0].id, statut: statutFinal });
-  } catch (err) {
-    console.error('POST /api/factures', err);
-    res.status(500).json({ error: err.message });
+      if (!fournisseur || !date_echeance || typeof montant_fcfa !== 'number') {
+        return res.status(400).json({ error: 'Fournisseur, date échéance et montant (nombre) sont obligatoires' });
+      }
+
+      const statutFinal = statut || 'reçue';
+
+      const result = await pool.query(
+        `INSERT INTO factures
+         (fournisseur, numero_facture, date_emission, date_echeance, montant_fcfa, statut, id_depense_liee)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [
+          fournisseur,
+          numero_facture || '',
+          date_emission || '',
+          date_echeance,
+          montant_fcfa,
+          statutFinal,
+          id_depense_liee || null
+        ]
+      );
+
+      res.status(201).json({ id: result.rows[0].id, statut: statutFinal });
+    } catch (err) {
+      console.error('POST /api/factures', err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // ------------------------ VALIDATIONS ------------------------
 
