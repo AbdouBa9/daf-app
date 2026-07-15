@@ -111,32 +111,6 @@ initDb();
 
 // ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
 
-async function chargerUtilisateurDepuisQuery(req, res, next) {
-  try {
-    const userId = req.query.userId || req.body.userId;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'userId manquant' });
-    }
-
-    const result = await pool.query(
-      `SELECT id, nom, role, email
-       FROM users
-       WHERE id = $1`,
-      [userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Utilisateur introuvable' });
-    }
-
-    req.user = result.rows[0];
-    next();
-  } catch (err) {
-    console.error('chargerUtilisateurDepuisQuery', err);
-    res.status(500).json({ error: err.message });
-  }
-}
 
 async function authCompat(req, res, next) {
   try {
@@ -581,31 +555,16 @@ app.put(
 
 // ------------------------ UTILISATEUR COURANT ------------------------
 
-app.get('/api/user/current', async (req, res) => {
+app.get('/api/user/current', authCompat, async (req, res) => {
   try {
-    const { id } = req.query;
-
-    if (!id) {
-      return res.status(400).json({ error: 'Paramètre id manquant' });
-    }
-
-    const result = await pool.query(
-      `SELECT id, nom, role, email
-       FROM users
-       WHERE id = $1`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Utilisateur introuvable' });
-    }
-
-    res.json(result.rows[0]);
+    res.json(req.user);
   } catch (err) {
     console.error('GET /api/user/current', err);
     res.status(500).json({ error: err.message });
   }
-});
+});``
+
+
 // ------------------------ DASHBOARD ------------------------
 
 app.get(
