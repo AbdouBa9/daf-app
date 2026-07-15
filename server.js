@@ -202,7 +202,7 @@ app.get('/', (req, res) => {
 
 app.get(
   '/api/depenses',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'requester', 'validator'),
   async (req, res) => {
     try {
@@ -233,7 +233,7 @@ app.get(
 
 app.get(
   '/api/depenses/:id',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'requester', 'validator'),
   async (req, res) => {
     try {
@@ -257,7 +257,7 @@ app.get(
 // Création de dépense + éventuelle demande de validation en transaction
 app.post(
   '/api/depenses',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'requester'),
   async (req, res) => {
     const client = await pool.connect();
@@ -307,7 +307,7 @@ app.post(
 
 app.get(
   '/api/factures',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'payer', 'validator'),
   async (req, res) => {
     try {
@@ -333,7 +333,7 @@ app.get(
 
 app.get(
   '/api/factures/:id',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'payer', 'validator'),
   async (req, res) => {
     try {
@@ -358,7 +358,7 @@ app.get(
 
 app.post(
   '/api/factures',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'payer'),
   async (req, res) => {
     try {
@@ -406,7 +406,7 @@ app.post(
 
 app.get(
   '/api/validations',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'validator'),
   async (req, res) => {
     try {
@@ -432,7 +432,7 @@ app.get(
 
 app.post(
   '/api/validations',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'validator'),
   async (req, res) => {
     try {
@@ -482,7 +482,7 @@ app.post(
 // Mise à jour validation + statut de dépense liée en transaction
 app.put(
   '/api/validations/:id',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'validator'),
   async (req, res) => {
     const client = await pool.connect();
@@ -610,7 +610,7 @@ app.get('/api/user/current', async (req, res) => {
 
 app.get(
   '/api/dashboard/daf',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin'),
   async (req, res) => {
     try {
@@ -666,7 +666,7 @@ app.get(
 
 app.get(
   '/api/paie',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'payer'),
   async (req, res) => {
     try {
@@ -696,7 +696,7 @@ app.get(
 
 app.post(
   '/api/paie',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin', 'payer'),
   async (req, res) => {
     try {
@@ -730,7 +730,7 @@ app.post(
 
 app.get(
   '/api/debug/users',
-  chargerUtilisateurDepuisQuery,
+  authCompat,
   autoriserRoles('admin'),
   async (req, res) => {
     try {
