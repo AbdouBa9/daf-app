@@ -292,25 +292,30 @@ app.get(
   }
 );
 
-app.get('/api/factures/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
+app.get(
+  '/api/factures/:id',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'payer', 'validator'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    const result = await pool.query(
-      'SELECT * FROM factures WHERE id = $1',
-      [id]
-    );
+      const result = await pool.query(
+        'SELECT * FROM factures WHERE id = $1',
+        [id]
+      );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Facture introuvable' });
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Facture introuvable' });
+      }
+
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error('GET /api/factures/:id', err);
+      res.status(500).json({ error: err.message });
     }
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('GET /api/factures/:id', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 app.post(
   '/api/factures',
