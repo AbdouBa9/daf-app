@@ -345,26 +345,31 @@ app.post(
 
 // ------------------------ VALIDATIONS ------------------------
 
-app.get('/api/validations', async (req, res) => {
-  try {
-    const { statut } = req.query;
-    let sql = 'SELECT * FROM validations WHERE 1=1';
-    const values = [];
+app.get(
+  '/api/validations',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'validator'),
+  async (req, res) => {
+    try {
+      const { statut } = req.query;
+      let sql = 'SELECT * FROM validations WHERE 1=1';
+      const values = [];
 
-    if (statut) {
-      values.push(statut);
-      sql += ` AND statut = $${values.length}`;
+      if (statut) {
+        values.push(statut);
+        sql += ` AND statut = $${values.length}`;
+      }
+
+      sql += ' ORDER BY date_demande DESC, id DESC';
+
+      const result = await pool.query(sql, values);
+      res.json(result.rows);
+    } catch (err) {
+      console.error('GET /api/validations', err);
+      res.status(500).json({ error: err.message });
     }
-
-    sql += ' ORDER BY date_demande DESC, id DESC';
-
-    const result = await pool.query(sql, values);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('GET /api/validations', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 app.post('/api/validations', async (req, res) => {
   try {
