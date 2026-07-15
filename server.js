@@ -206,48 +206,53 @@ app.get('/api/depenses/:id', async (req, res) => {
 });
 
 // Création de dépense + éventuelle demande de validation en transaction
-app.post('/api/depenses', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { date_depense, type_depense, description, montant_fcfa, action } = req.body;
+app.post(
+  '/api/depenses',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'requester'),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      const { date_depense, type_depense, description, montant_fcfa, action } = req.body;
 
-    if (!date_depense || !type_depense || typeof montant_fcfa !== 'number') {
-      return res.status(400).json({ error: 'date_depense, type_depense et montant_fcfa sont obligatoires' });
-    }
+      if (!date_depense || !type_depense || typeof montant_fcfa !== 'number') {
+        return res.status(400).json({ error: 'date_depense, type_depense et montant_fcfa sont obligatoires' });
+      }
 
-    const statut = action === 'validation' ? 'en_validation' : 'brouillon';
+      const statut = action === 'validation' ? 'en_validation' : 'brouillon';
 
-    await client.query('BEGIN');
+      await client.query('BEGIN');
 
-    const insertDepense = await client.query(
-      `INSERT INTO depenses
-       (date_depense, type_depense, description, montant_fcfa, statut)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id`,
-      [date_depense, type_depense, description || '', montant_fcfa, statut]
-    );
-
-    const newId = insertDepense.rows[0].id;
-
-    if (statut === 'en_validation') {
-      await client.query(
-        `INSERT INTO validations (type_objet, id_objet, statut, date_demande)
-         VALUES ($1, $2, $3, NOW()::text)`,
-        ['depense', newId, 'en_attente']
+      const insertDepense = await client.query(
+        `INSERT INTO depenses
+         (date_depense, type_depense, description, montant_fcfa, statut)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [date_depense, type_depense, description || '', montant_fcfa, statut]
       );
+
+      const newId = insertDepense.rows[0].id;
+
+      if (statut === 'en_validation') {
+        await client.query(
+          `INSERT INTO validations (type_objet, id_objet, statut, date_demande)
+           VALUES ($1, $2, $3, NOW()::text)`,
+          ['depense', newId, 'en_attente']
+        );
+      }
+
+      await client.query('COMMIT');
+
+      res.status(201).json({ id: newId, statut });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error('POST /api/depenses', err);
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
     }
-
-    await client.query('COMMIT');
-
-    res.status(201).json({ id: newId, statut });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('POST /api/depenses', err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    client.release();
   }
-});
+);
 
 // ------------------------ FACTURES ------------------------
 
