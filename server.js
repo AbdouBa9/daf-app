@@ -161,49 +161,59 @@ app.get('/', (req, res) => {
 
 // ------------------------ DÉPENSES ------------------------
 
-app.get('/api/depenses', async (req, res) => {
-  try {
-    const { statut, type_depense } = req.query;
-    let sql = 'SELECT * FROM depenses WHERE 1=1';
-    const values = [];
+app.get(
+  '/api/depenses',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'requester', 'validator'),
+  async (req, res) => {
+    try {
+      const { statut, type_depense } = req.query;
+      let sql = 'SELECT * FROM depenses WHERE 1=1';
+      const values = [];
 
-    if (statut) {
-      values.push(statut);
-      sql += ` AND statut = $${values.length}`;
+      if (statut) {
+        values.push(statut);
+        sql += ` AND statut = $${values.length}`;
+      }
+
+      if (type_depense) {
+        values.push(type_depense);
+        sql += ` AND type_depense = $${values.length}`;
+      }
+
+      sql += ' ORDER BY date_depense DESC, id DESC';
+
+      const result = await pool.query(sql, values);
+      res.json(result.rows);
+    } catch (err) {
+      console.error('GET /api/depenses', err);
+      res.status(500).json({ error: err.message });
     }
-
-    if (type_depense) {
-      values.push(type_depense);
-      sql += ` AND type_depense = $${values.length}`;
-    }
-
-    sql += ' ORDER BY date_depense DESC, id DESC';
-
-    const result = await pool.query(sql, values);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('GET /api/depenses', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
-app.get('/api/depenses/:id', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM depenses WHERE id = $1',
-      [req.params.id]
-    );
+app.get(
+  '/api/depenses/:id',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'requester', 'validator'),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        'SELECT * FROM depenses WHERE id = $1',
+        [req.params.id]
+      );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Dépense non trouvée' });
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Dépense non trouvée' });
+      }
+
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error('GET /api/depenses/:id', err);
+      res.status(500).json({ error: err.message });
     }
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('GET /api/depenses/:id', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 // Création de dépense + éventuelle demande de validation en transaction
 app.post(
