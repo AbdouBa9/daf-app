@@ -498,44 +498,7 @@ app.put(
 );
 
     // Si validation porte sur une dépense, on synchronise le statut de la dépense
-    if (validation.type_objet === 'depense') {
-      let nouveauStatutDepense;
-      if (statut === 'validée') {
-        nouveauStatutDepense = 'validée';
-      } else if (statut === 'rejetée') {
-        nouveauStatutDepense = 'rejetée';
-      } else if (statut === 'en_attente') {
-        nouveauStatutDepense = 'en_validation';
-      }
-
-      if (nouveauStatutDepense) {
-        await client.query(
-          `UPDATE depenses
-           SET statut = $1,
-               id_validateur = $2,
-               date_validation = $3
-           WHERE id = $4`,
-          [
-            nouveauStatutDepense,
-            id_validateur || null,
-            date_decision || new Date().toISOString().slice(0, 10),
-            validation.id_objet
-          ]
-        );
-      }
-    }
-
-    await client.query('COMMIT');
-
-    res.json(updateVal.rows[0]);
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('PUT /api/validations/:id', err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    client.release();
-  }
-});
+   
 
 // ------------------------ UTILISATEUR COURANT ------------------------
 
