@@ -107,6 +107,53 @@ async function initDb() {
 
 initDb();
 
+// ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
+
+async function chargerUtilisateurDepuisQuery(req, res, next) {
+  try {
+    const userId = req.query.userId || req.body.userId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'userId manquant' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, nom, role, email
+       FROM users
+       WHERE id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Utilisateur introuvable' });
+    }
+
+    req.user = result.rows[0];
+    next();
+  } catch (err) {
+    console.error('chargerUtilisateurDepuisQuery', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+function autoriserRoles(...rolesAutorises) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+    }
+
+    if (!rolesAutorises.includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Accès interdit',
+        role_actuel: req.user.role,
+        roles_autorises: rolesAutorises
+      });
+    }
+
+    next();
+  };
+}
+
 // Route test
 app.get('/', (req, res) => {
   res.json({ message: 'API DAF opérationnelle' });
@@ -543,28 +590,39 @@ app.get('/api/paie', async (req, res) => {
   }
 });
 
-app.post('/api/paie', async (req, res) => {
-  try {
-    const { mois, masse_salariale } = req.body;
+app.post(
+  '/api/paie',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'payer'),
+  async (req, res) => {
+    try {
+      const { mois, masse_salariale } = req.body;
 
-    if (!mois || typeof masse_salariale !== 'number') {
-      return res.status(400).json({ error: 'mois (AAAA-MM) et masse_salariale (nombre) requis' });
+      if (!mois || typeof masse_salariale !== 'number') {
+        return res.status(400).json({ error: 'mois (AAAA-MM) et masse_salariale (nombre) requis' });
+      }
+
+      await pool.query(
+        `INSERT INTO paie_mensuelle (mois, masse_salariale)
+         VALUES ($1, $2)
+         ON CONFLICT (mois)
+         DO UPDATE SET masse_salariale = EXCLUDED.masse_salariale`,
+        [mois, masse_salariale]
+      );
+
+      res.json({
+        message: 'Masse salariale enregistrée',
+        mois,
+        masse_salariale,
+        utilisateur: req.user.nom,
+        role: req.user.role
+      });
+    } catch (err) {
+      console.error('POST /api/paie', err);
+      res.status(500).json({ error: err.message });
     }
-
-    await pool.query(
-      `INSERT INTO paie_mensuelle (mois, masse_salariale)
-       VALUES ($1, $2)
-       ON CONFLICT (mois)
-       DO UPDATE SET masse_salariale = EXCLUDED.masse_salariale`,
-      [mois, masse_salariale]
-    );
-
-    res.json({ message: 'Masse salariale enregistrée', mois, masse_salariale });
-  } catch (err) {
-    console.error('POST /api/paie', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 app.get('/api/debug/users', async (req, res) => {
   try {
