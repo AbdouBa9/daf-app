@@ -644,17 +644,22 @@ app.post(
   }
 );
 
-app.get('/api/debug/users', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, nom, role, email FROM users ORDER BY id ASC'
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('GET /api/debug/users', err);
-    res.status(500).json({ error: err.message });
+app.get(
+  '/api/debug/users',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin'),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        'SELECT id, nom, role, email FROM users ORDER BY id ASC'
+      );
+      res.json(result.rows);
+    } catch (err) {
+      console.error('GET /api/debug/users', err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 
 
