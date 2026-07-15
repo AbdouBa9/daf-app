@@ -585,30 +585,35 @@ app.get('/api/dashboard/daf', async (req, res) => {
 
 // ------------------------ PAIE ------------------------
 
-app.get('/api/paie', async (req, res) => {
-  try {
-    const { mois } = req.query;
+app.get(
+  '/api/paie',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'payer'),
+  async (req, res) => {
+    try {
+      const { mois } = req.query;
 
-    if (!mois) {
-      return res.status(400).json({ error: 'Paramètre mois manquant (AAAA-MM)' });
+      if (!mois) {
+        return res.status(400).json({ error: 'Paramètre mois manquant (AAAA-MM)' });
+      }
+
+      const result = await pool.query(
+        `SELECT masse_salariale FROM paie_mensuelle WHERE mois = $1`,
+        [mois]
+      );
+
+      res.json({
+        mois,
+        masse_salariale: result.rows[0]
+          ? Number(result.rows[0].masse_salariale || 0)
+          : 0
+      });
+    } catch (err) {
+      console.error('GET /api/paie', err);
+      res.status(500).json({ error: err.message });
     }
-
-    const result = await pool.query(
-      `SELECT masse_salariale FROM paie_mensuelle WHERE mois = $1`,
-      [mois]
-    );
-
-    res.json({
-      mois,
-      masse_salariale: result.rows[0]
-        ? Number(result.rows[0].masse_salariale || 0)
-        : 0
-    });
-  } catch (err) {
-    console.error('GET /api/paie', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 app.post(
   '/api/paie',
