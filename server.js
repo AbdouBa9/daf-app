@@ -534,54 +534,59 @@ app.get('/api/user/current', async (req, res) => {
 });
 // ------------------------ DASHBOARD ------------------------
 
-app.get('/api/dashboard/daf', async (req, res) => {
-  try {
-    const { mois } = req.query;
-    const moisPrefix = (mois || '').slice(0, 7);
+app.get(
+  '/api/dashboard/daf',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin'),
+  async (req, res) => {
+    try {
+      const { mois } = req.query;
+      const moisPrefix = (mois || '').slice(0, 7);
 
-    const result = {};
-    result.tresorerie = 12400000;
+      const result = {};
+      result.tresorerie = 12400000;
 
-    const depensesResult = await pool.query(
-      `SELECT COALESCE(SUM(montant_fcfa), 0) AS total
-       FROM depenses
-       WHERE statut IN ('validée', 'payée')
-       AND SUBSTRING(date_depense, 1, 7) = $1`,
-      [moisPrefix]
-    );
-    result.depenses_mois = Number(depensesResult.rows[0].total || 0);
+      const depensesResult = await pool.query(
+        `SELECT COALESCE(SUM(montant_fcfa), 0) AS total
+         FROM depenses
+         WHERE statut IN ('validée', 'payée')
+         AND SUBSTRING(date_depense, 1, 7) = $1`,
+        [moisPrefix]
+      );
+      result.depenses_mois = Number(depensesResult.rows[0].total || 0);
 
-    const facturesResult = await pool.query(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(montant_fcfa), 0) AS total
-       FROM factures
-       WHERE statut IN ('reçue', 'en_validation')`
-    );
-    result.factures_en_attente_nombre = Number(facturesResult.rows[0].n || 0);
-    result.factures_en_attente_montant = Number(facturesResult.rows[0].total || 0);
+      const facturesResult = await pool.query(
+        `SELECT COUNT(*) AS n, COALESCE(SUM(montant_fcfa), 0) AS total
+         FROM factures
+         WHERE statut IN ('reçue', 'en_validation')`
+      );
+      result.factures_en_attente_nombre = Number(facturesResult.rows[0].n || 0);
+      result.factures_en_attente_montant = Number(facturesResult.rows[0].total || 0);
 
-    const paieResult = await pool.query(
-      `SELECT masse_salariale
-       FROM paie_mensuelle
-       WHERE mois = $1`,
-      [moisPrefix]
-    );
-    result.masse_salariale = paieResult.rows[0]
-      ? Number(paieResult.rows[0].masse_salariale || 0)
-      : 0;
+      const paieResult = await pool.query(
+        `SELECT masse_salariale
+         FROM paie_mensuelle
+         WHERE mois = $1`,
+        [moisPrefix]
+      );
+      result.masse_salariale = paieResult.rows[0]
+        ? Number(paieResult.rows[0].masse_salariale || 0)
+        : 0;
 
-    const validationsResult = await pool.query(
-      `SELECT COUNT(*) AS n
-       FROM validations
-       WHERE statut = 'en_attente'`
-    );
-    result.validations_en_attente = Number(validationsResult.rows[0].n || 0);
+      const validationsResult = await pool.query(
+        `SELECT COUNT(*) AS n
+         FROM validations
+         WHERE statut = 'en_attente'`
+      );
+      result.validations_en_attente = Number(validationsResult.rows[0].n || 0);
 
-    res.json(result);
-  } catch (err) {
-    console.error('GET /api/dashboard/daf', err);
-    res.status(500).json({ error: err.message });
+      res.json(result);
+    } catch (err) {
+      console.error('GET /api/dashboard/daf', err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // ------------------------ PAIE ------------------------
 
