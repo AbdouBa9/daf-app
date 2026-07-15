@@ -109,6 +109,8 @@ initDb();
 
 // ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
 
+// ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
+
 async function chargerUtilisateurDepuisQuery(req, res, next) {
   try {
     const userId = req.query.userId || req.body.userId;
@@ -132,6 +134,43 @@ async function chargerUtilisateurDepuisQuery(req, res, next) {
     next();
   } catch (err) {
     console.error('chargerUtilisateurDepuisQuery', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function authCompat(req, res, next) {
+  try {
+    let userIdValue = req.header('x-user-id');
+
+    if (!userIdValue) {
+      userIdValue = req.query.userId;
+    }
+
+    if (!userIdValue) {
+      return res.status(401).json({ error: 'Authentification requise' });
+    }
+
+    const userId = parseInt(userIdValue, 10);
+
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: 'Identifiant utilisateur invalide' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, nom, role, email
+       FROM users
+       WHERE id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Utilisateur introuvable' });
+    }
+
+    req.user = result.rows[0];
+    next();
+  } catch (err) {
+    console.error('authCompat', err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -710,8 +749,11 @@ app.get(
 
 // ------------------------ HEALTH ------------------------
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+app.get('/api/health', authCompat, (req, res) => {
+  res.json({
+    status: 'ok',
+    user: req.user
+  });
 });
 
 // ------------------------ SERVEUR ------------------------
