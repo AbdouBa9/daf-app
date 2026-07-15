@@ -401,49 +401,101 @@ app.post('/api/validations', async (req, res) => {
 });
 
 // Mise à jour validation + statut de dépense liée en transaction
-app.put('/api/validations/:id', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { id } = req.params;
-    const { statut, id_validateur, date_decision, commentaire } = req.body;
+app.put(
+  '/api/validations/:id',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'validator'),
+  async (req, res) => {
+    const client = await pool.connect();
 
-    if (!statut) {
-      return res.status(400).json({ error: 'Le statut est obligatoire' });
-    }
+    try {
+      const { id } = req.params;
+      const { statut, id_validateur, date_decision, commentaire } = req.body;
 
-    await client.query('BEGIN');
+      if (!statut) {
+        return res.status(400).json({ error: 'Le statut est obligatoire' });
+      }
 
-    // On récupère la validation pour savoir si elle porte sur une dépense
-    const valResult = await client.query(
-      `SELECT type_objet, id_objet
-       FROM validations
-       WHERE id = $1`,
-      [id]
-    );
+      await client.query('BEGIN');
 
-    if (valResult.rowCount === 0) {
+      const valResult = await client.query(
+        `SELECT type_objet, id_objet
+         FROM validations
+         WHERE id = $1`,
+        [id]
+      );
+
+      if (valResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Validation introuvable' });
+      }
+
+      const validation = valResult.rows[0];
+
+      const validateurFinal = id_validateur || req.user.id;
+      const dateDecisionFinale = date_decision || new Date().toISOString().slice(0, 10);
+
+      const updateVal = await client.query(
+        `UPDATE validations
+         SET statut = $1,
+             id_validateur = $2,
+             date_decision = $3,
+             commentaire = $4
+         WHERE id = $5
+         RETURNING id, statut, id_validateur, date_decision, commentaire`,
+        [
+          statut,
+          validateurFinal,
+          dateDecisionFinale,
+          commentaire || '',
+          id
+        ]
+      );
+
+      if (validation.type_objet === 'depense') {
+        let nouveauStatutDepense;
+
+        if (statut === 'validée') {
+          nouveauStatutDepense = 'validée';
+        } else if (statut === 'rejetée') {
+          nouveauStatutDepense = 'rejetée';
+        } else if (statut === 'en_attente') {
+          nouveauStatutDepense = 'en_validation';
+        }
+
+        if (nouveauStatutDepense) {
+          await client.query(
+            `UPDATE depenses
+             SET statut = $1,
+                 id_validateur = $2,
+                 date_validation = $3
+             WHERE id = $4`,
+            [
+              nouveauStatutDepense,
+              validateurFinal,
+              dateDecisionFinale,
+              validation.id_objet
+            ]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      res.json({
+        ...updateVal.rows[0],
+        utilisateur: req.user.nom,
+        role: req.user.role
+      });
+    } catch (err) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Validation introuvable' });
+      console.error('PUT /api/validations/:id', err);
+      res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
     }
-
-    const validation = valResult.rows[0];
-
-    const updateVal = await client.query(
-      `UPDATE validations
-       SET statut = $1,
-           id_validateur = $2,
-           date_decision = $3,
-           commentaire = $4
-       WHERE id = $5
-       RETURNING id, statut, id_validateur, date_decision, commentaire`,
-      [
-        statut,
-        id_validateur || null,
-        date_decision || new Date().toISOString().slice(0, 10),
-        commentaire || '',
-        id
-      ]
-    );
+  }
+);
 
     // Si validation porte sur une dépense, on synchronise le statut de la dépense
     if (validation.type_objet === 'depense') {
