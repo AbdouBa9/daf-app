@@ -266,26 +266,31 @@ app.post(
 
 // ------------------------ FACTURES ------------------------
 
-app.get('/api/factures', async (req, res) => {
-  try {
-    const { statut } = req.query;
-    let sql = 'SELECT * FROM factures WHERE 1=1';
-    const values = [];
+app.get(
+  '/api/factures',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'payer', 'validator'),
+  async (req, res) => {
+    try {
+      const { statut } = req.query;
+      let sql = 'SELECT * FROM factures WHERE 1=1';
+      const values = [];
 
-    if (statut) {
-      values.push(statut);
-      sql += ` AND statut = $${values.length}`;
+      if (statut) {
+        values.push(statut);
+        sql += ` AND statut = $${values.length}`;
+      }
+
+      sql += ' ORDER BY date_echeance ASC, id ASC';
+
+      const result = await pool.query(sql, values);
+      res.json(result.rows);
+    } catch (err) {
+      console.error('GET /api/factures', err);
+      res.status(500).json({ error: err.message });
     }
-
-    sql += ' ORDER BY date_echeance ASC, id ASC';
-
-    const result = await pool.query(sql, values);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('GET /api/factures', err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
 app.get('/api/factures/:id', async (req, res) => {
   try {
