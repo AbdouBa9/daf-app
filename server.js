@@ -371,49 +371,54 @@ app.get(
   }
 );
 
-app.post('/api/validations', async (req, res) => {
-  try {
-    const {
-      type_objet,
-      id_objet,
-      id_demandeur,
-      id_validateur,
-      statut,
-      commentaire,
-      date_demande
-    } = req.body;
-
-    if (!type_objet || !id_objet) {
-      return res.status(400).json({
-        error: 'type_objet et id_objet sont obligatoires'
-      });
-    }
-
-    const statutFinal = statut || 'en_attente';
-    const dateDemandeFinale = date_demande || new Date().toISOString().slice(0, 10);
-
-    const result = await pool.query(
-      `INSERT INTO validations
-       (type_objet, id_objet, id_demandeur, id_validateur, statut, date_demande, commentaire)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, statut`,
-      [
+app.post(
+  '/api/validations',
+  chargerUtilisateurDepuisQuery,
+  autoriserRoles('admin', 'validator'),
+  async (req, res) => {
+    try {
+      const {
         type_objet,
         id_objet,
-        id_demandeur || null,
-        id_validateur || null,
-        statutFinal,
-        dateDemandeFinale,
-        commentaire || ''
-      ]
-    );
+        id_demandeur,
+        id_validateur,
+        statut,
+        commentaire,
+        date_demande
+      } = req.body;
 
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('POST /api/validations', err);
-    res.status(500).json({ error: err.message });
+      if (!type_objet || !id_objet) {
+        return res.status(400).json({
+          error: 'type_objet et id_objet sont obligatoires'
+        });
+      }
+
+      const statutFinal = statut || 'en_attente';
+      const dateDemandeFinale = date_demande || new Date().toISOString().slice(0, 10);
+
+      const result = await pool.query(
+        `INSERT INTO validations
+         (type_objet, id_objet, id_demandeur, id_validateur, statut, date_demande, commentaire)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, statut`,
+        [
+          type_objet,
+          id_objet,
+          id_demandeur || null,
+          id_validateur || null,
+          statutFinal,
+          dateDemandeFinale,
+          commentaire || ''
+        ]
+      );
+
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      console.error('POST /api/validations', err);
+      res.status(500).json({ error: err.message });
+    }
   }
-});
+);
 
 // Mise à jour validation + statut de dépense liée en transaction
 app.put(
