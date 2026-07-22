@@ -242,6 +242,24 @@ app.get('/', (req, res) => {
   res.json({ message: 'API DAF opérationnelle' });
 });
 
+function autoriserRoles(...rolesAutorises) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+    }
+
+    if (!rolesAutorises.includes(req.user.role)) {
+      return res.status(403).json({
+        error: 'Accès interdit',
+        role_actuel: req.user.role,
+        roles_autorises: rolesAutorises
+      });
+    }
+
+    next();
+  };
+}
+
 // ------------------------ DÉPENSES ------------------------
 
 app.get(
@@ -632,7 +650,7 @@ app.get('/api/user/current', authCompat, async (req, res) => {
     console.error('GET /api/user/current', err);
     res.status(500).json({ error: err.message });
   }
-});``
+});
 
 
 // ------------------------ DASHBOARD ------------------------
