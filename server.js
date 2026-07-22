@@ -190,6 +190,39 @@ app.post('/api/auth/logout', (req, res) => {
   }
 });
 
+// ------------------------ INIT MOTS DE PASSE (TEMPORAIRE) ------------------------
+// ATTENTION : À SUPPRIMER APRÈS UTILISATION
+
+app.post('/api/debug/init-passwords', async (req, res) => {
+  try {
+    // Protéger un minimum : ne laisser passer qu'en local ou avec un "secret" simple
+    const secret = req.query.secret;
+    if (secret !== (process.env.INIT_SECRET || 'init123')) {
+      return res.status(403).json({ error: 'Accès interdit' });
+    }
+
+    const usersToInit = [
+      { id: 1, plain: 'Admin123!' },
+      { id: 2, plain: 'Demandeur123!' },
+      { id: 3, plain: 'Validateur123!' },
+      { id: 4, plain: 'Payeur123!' }
+    ];
+
+    for (const u of usersToInit) {
+      const hash = await bcrypt.hash(u.plain, 12);
+      await pool.query(
+        'UPDATE users SET mot_de_passe_hash = $1 WHERE id = $2',
+        [hash, u.id]
+      );
+    }
+
+    res.json({ message: 'Mots de passe initialisés pour les IDs 1 à 4.' });
+  } catch (err) {
+    console.error('POST /api/debug/init-passwords', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
 
 // ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
