@@ -2,10 +2,30 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: ['https://icallcenter300626.web.app'], // adapte si besoin
+  credentials: true
+}));
+
 app.use(express.json());
+
+app.use(session({
+  name: 'daf_sid',
+  secret: process.env.SESSION_SECRET || 'change-moi-en-prodreel',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 1000 * 60 * 60 * 8 // 8 heures
+  }
+}));
 
 // Connexion Postgres (Render)
 const pool = new Pool({
@@ -107,6 +127,69 @@ async function initDb() {
 
 initDb();
 
+// ------------------------ AUTH BASIQUE (LOGIN / LOGOUT) ------------------------
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, mot_de_passe } = req.body;
+
+    if (!email || !mot_de_passe) {
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, nom, role, email, mot_de_passe_hash
+       FROM users
+       WHERE email = $1`,
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Identifiants invalides' });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.mot_de_passe_hash) {
+      return res.status(401).json({ error: 'Compte sans mot de passe défini' });
+    }
+
+    const ok = await bcrypt.compare(mot_de_passe, user.mot_de_passe_hash);
+    if (!ok) {
+      return res.status(401).json({ error: 'Identifiants invalides' });
+    }
+
+    // OK: on crée la session
+    req.session.userId = user.id;
+
+    res.json({
+      id: user.id,
+      nom: user.nom,
+      role: user.role,
+      email: user.email
+    });
+  } catch (err) {
+    console.error('POST /api/auth/login', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  try {
+    req.session.destroy(err => {
+      if (err) {
+        console.error('Erreur logout', err);
+        return res.status(500).json({ error: 'Impossible de se déconnecter' });
+      }
+      res.clearCookie('daf_sid');
+      res.json({ message: 'Déconnecté' });
+    });
+  } catch (err) {
+    console.error('POST /api/auth/logout', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
 
 // ------------------------ MIDDLEWARES AUTH / ROLES ------------------------
@@ -114,10 +197,16 @@ initDb();
 
 async function authCompat(req, res, next) {
   try {
-    let userIdValue = req.header('x-user-id');
+    let userIdValue = null;
 
+    // 1) En prod: on privilégie la session
+    if (req.session && req.session.userId) {
+      userIdValue = req.session.userId;
+    }
+
+    // 2) Mode démo / compat: x-user-id ou query ?userId
     if (!userIdValue) {
-      userIdValue = req.query.userId;
+      userIdValue = req.header('x-user-id') || req.query.userId;
     }
 
     if (!userIdValue) {
@@ -125,7 +214,6 @@ async function authCompat(req, res, next) {
     }
 
     const userId = parseInt(userIdValue, 10);
-
     if (Number.isNaN(userId)) {
       return res.status(400).json({ error: 'Identifiant utilisateur invalide' });
     }
@@ -147,24 +235,6 @@ async function authCompat(req, res, next) {
     console.error('authCompat', err);
     res.status(500).json({ error: err.message });
   }
-}
-
-function autoriserRoles(...rolesAutorises) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    }
-
-    if (!rolesAutorises.includes(req.user.role)) {
-      return res.status(403).json({
-        error: 'Accès interdit',
-        role_actuel: req.user.role,
-        roles_autorises: rolesAutorises
-      });
-    }
-
-    next();
-  };
 }
 
 // Route test
